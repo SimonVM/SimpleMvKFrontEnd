@@ -23,3 +23,8 @@ Once a toolbar is loaded, types can be instantiated. Left-click on a type to sel
 Note that currently, there is only a default concrete syntax: the name of the element, followed by the name of the class it is an instance of.
 
 When you instantiate a type, a window will pop up with the attributes to be given a value. Important to note is that usually, this is intuitive: for an integer attribute, you can fill in 0, 5, -1, ... For a boolean attribute, you can fill in True or False. However, if the type cannot be automatically deduced (such as when creating a SimpleClassDiagrams.Attribute, the Attribute.default value), you have to manually instantiate it, for example: IntegerValue(0).
+
+You can edit instances by clicking on them with the middle mouse button. All attributes are listed, and you can give them new values. If you created an element, and that element's type is connected to another type though a composition, you can also add such children in this window. A good example is Class and Attribute from SimpleClassDiagram: when editing a Class, there is a button to add new Attributes through the attributes composition.
+
+Creating Associations
+=================
