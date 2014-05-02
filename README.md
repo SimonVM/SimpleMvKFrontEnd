@@ -28,3 +28,20 @@ You can edit instances by clicking on them with the middle mouse button. All att
 
 Creating Associations
 =================
+
+Associations are created just as Clabjects are. For example, when the SimpleClassDiagrams formalism is loaded, you can create the 'Inherits' association between two classes by left-clicking the correct button in the toolbar, then right-clicking anywhere on the canvas. The first two attributes will be the names of the association ends: in this case 'from_class' and 'to_class'. Here, you need to fill in the absolute path of the classes you want the inheritance relation to be created between. For example, 'from_class' can be 'formalisms.Petrinets.Place' and 'to_class' can be 'formalisms.Petrinets.NamedElement'. The rest of the attributes are filled in as with Clabjects.
+
+Creating Attributes (in SimpleClassDiagrams)
+=================
+
+When a Clabject or Association is created, it can be edited by middle-clicking its visual representation on the canvas.
+
+The edit screen will list all the attributes of the element, and allow to edit them. For each outgoing Composition relation of the element (in the case of SimpleClassDiagrams.Class, 'attributes' is the only outgoing Composition), it will list a separate button and a list of elements connected with it through that Composition.
+
+The button allows to create an instance as a child of the element which is being edited. In the case of an attribute, the attribute will be created on the location of the element being edited, and a composition relation between the element and the attribute is automatically instantiated.
+
+Attribute Values
+=================
+Usually, the system can infer the type of the attribute a value is assigned to. For example, the 'name' attribute of a Class is a String: so the system knows that it has to parse whatever value you assign to it as a String. The same is true for the lower bound of an Association: it knows to parse this as an integer.
+
+Sometimes, however, the system cannot automatically deduce this. A good example is the 'default' attribute of an Attribute: this value can be of any type, and therefore it is impossible for the system to deduce which type actually has to be instantiated. For those cases, it's also possible to manually instantiate the correct class. In the 'default' example, you could enter 'StringValue('test')' or 'IntegerValue(0)'.
