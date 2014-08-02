@@ -1,0 +1,34 @@
+<?xml version="1.0" ?>
+<diagram author="Simon Van Mierlo" name="Testing Twoway Communication">
+    <description>
+        Tkinter frame with bouncing balls in it.
+    </description>
+    <top>
+        import time
+        import random
+        import Tkinter as tk
+        from mvk_widget import MvKWidget
+    </top>
+    <inport name="input"/>
+    <class name="MainApp" default="true">
+        <relationships>
+            <association name="fields" class="Field" />
+            <inheritance class="RuntimeClassBase" priority='1'/>
+            <inheritance class="tk.Tk" priority='0'/>
+        </relationships>
+        <method name="MainApp">
+            <body>
+                tk.Tk.__init__(self)
+                self.fixed_update_time = 20
+                self.update_self()
+                self.withdraw()
+                self.nr_of_fields = 0
+            </body>
+        </method>
+        <method name="update_self">
+            <body>
+                self.controller.update(self.fixed_update_time / 1000.0)
+                self.schedule_time = time.time()
+                self.scheduled_update_id = self.after(self.fixed_update_time, self.update_self)
+            </body>
+        </method>

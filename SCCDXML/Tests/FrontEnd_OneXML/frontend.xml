@@ -1,0 +1,1257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram author="Simon Van Mierlo" name="MvK Frontend">
+	<description>
+		Tkinter frontend for the Modelverse.
+	</description>
+	<top>
+		import time
+		import Tkinter as tk
+		from util_classes import *
+
+		import urllib
+		import urllib2
+		import sys
+
+		from mvk.impl.python.util.jsonserializer import MvKEncoder
+		from mvk.impl.client.jsondeserializer import MvKDecoder
+		import mvk.impl.client.object as client_object
+		
+		from mvk.impl.python.datavalue import LocationValue, StringValue, MappingValue, IntegerValue
+		from mvk.impl.python.datatype import *
+		from mvk.impl.python.constants import CreateConstants
+
+		host = "localhost"
+		port = "8000"
+	</top>
+	<inport name="input"/>
+	<class name="MvKFrontend" default="true">
+		<relationships>
+			<association name="windows" class="Window" />
+			<association name="client" class="Client" min="1" max="1" />
+			<inheritance class="tk.Tk" priority='1'/>
+		</relationships>
+		<method name="MvKFrontend">
+			<body>
+				tk.Tk.__init__(self)
+				self.fixed_update_time = 20
+				self.update_self()
+				self.withdraw()
+				self.nr_of_windows = 0
+			</body>
+		</method>
+		<method name="update_self">
+			<body>
+				self.controller.update(self.fixed_update_time / 1000.0)
+				self.schedule_time = time.time()
+				self.scheduled_update_id = self.after(self.fixed_update_time, self.update_self)
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="running">
+				<parallel id="running">
+					<transition event="stop" target="../stopped">
+						<script>
+							self.destroy()
+						</script>
+					</transition>
+					<state id="main_behaviour" initial="initializing">
+						<state id="initializing">
+							<transition target="../creating_client">
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"client"' />
+									<parameter expr='"MvKClient"' />
+								</raise>
+							</transition>
+						</state>
+						<state id="creating_client">
+							<transition event="instance_created" target="../initializing_windows">
+								<parameter name="association_name" type="str" />
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="initializing_windows">
+							<transition target="../creating_main_window">
+								<raise event="create_window">
+									<parameter expr="{'class_name': 'ModelEditor', 'constructor_parameters': {}}" />
+								</raise>
+							</transition>
+						</state>
+						<state id="creating_main_window">
+							<transition event='window_started' target="../running">
+								<parameter name="association_name" type="string"/>
+								<raise event="create_toolbar" scope="narrow" target="association_name">
+									<parameter expr="{'class_name': 'MainToolbar', 'constructor_parameters': {}}" />
+								</raise>
+							</transition>
+						</state>
+						<state id="running">
+							<transition target='.' event='button_pressed' cond='event_parameters["event_name"] == "create_window"'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="create_window">
+									<parameter expr="event_parameters" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+					<state id="cd_behaviour" initial="waiting">
+						<state id="waiting">
+							<transition event="create_window" target="../creating">
+								<parameter name="event_parameters" type="str" />
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"windows"' />
+									<parameter expr='event_parameters["class_name"]' />
+									<parameter expr='event_parameters["constructor_parameters"]' />
+								</raise>
+							</transition>
+							<transition event="delete_window" target='../check_nr_of_windows'>
+								<script>
+									self.nr_of_windows -= 1
+								</script>
+								<parameter name="association_name" type="str"/>
+								<raise scope="cd" event="delete_instance">
+									<parameter expr='association_name' />
+								</raise>
+							</transition>
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../starting">
+								<script>
+									self.nr_of_windows += 1
+								</script>
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="starting">
+							<transition event="instance_started" target="../waiting">
+								<parameter name="association_name" type="str"/>							
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="local" event="window_started">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="check_nr_of_windows">
+							<transition target="." cond="self.nr_of_windows == 0">
+								<raise event="stop" />
+							</transition>
+							<transition target="../waiting" cond="self.nr_of_windows != 0"/>
+						</state>
+					</state>
+					<state id="listening_client" initial="listening_client">
+						<state id="listening_client">
+							<transition event="client_request" target='.' cond="data['event_name'] == 'read'">
+								<parameter name="association_name" type="str" />
+								<parameter name="data" type="dict" />
+								<raise event="read" scope="narrow" target="'client'">
+									<parameter expr="'parent' + '/' + association_name" />
+									<parameter expr="data['request_parameters']['data']" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+				</parallel>
+				<state id="stopped" />
+			</state>
+		</scxml>
+	</class>
+	<class name="Window">
+		<relationships>
+			<inheritance class="MvKWidget" priority='0'/>
+			<inheritance class="tk.Toplevel" priority='1'/>
+		</relationships>
+		<method name="Window">
+			<body>
+				<![CDATA[
+				tk.Toplevel.__init__(self)
+				MvKWidget.__init__(self, self.controller)
+				]]>
+			</body>
+		</method>
+		<method name="~Window">
+			<body>
+				self.destroy()				
+			</body>
+		</method>
+		<scxml initial="idle">
+			<state id="idle" />
+		</scxml>
+	</class>
+	<class name="NewInstanceAttributeEditor">
+		<relationships>
+			<association name="editors" class="AttributeEditors" />
+			<association name="parent" class="Window" min="1" max="1" />
+			<inheritance class="Window" priority='0'/>
+		</relationships>
+		<method name="NewInstanceAttributeEditor">
+			<parameter name="constructor_parameters" type="dict" default="{}" />
+			<body>
+				<![CDATA[
+				Window.__init__(self, self.controller)
+				self.minsize(width=256, height=256)
+				self.t = constructor_parameters['type']
+				self.title('Create New %s Instance' % self.t.name)
+				self.grab_set()
+				
+				if isinstance(self.t, client_object.Model):
+					self.editors = [{'class_name': 'StringEditor', 'constructor_parameters': {'attr_name': StringValue('location')}}]
+				elif isinstance(self.t, client_object.Association):
+					self.editors = [{'class_name': 'StringEditor', 'constructor_parameters': {'attr_name': StringValue(self.t.from_multiplicity.port_name)}},
+									{'class_name': 'StringEditor', 'constructor_parameters': {'attr_name': StringValue(self.t.to_multiplicity.port_name)}}]
+				else:
+					self.editors = []
+				
+				for a in self.t.attributes:
+					class_name = None
+					the_type = a.the_type
+					if isinstance(the_type, StringType):
+						class_name = 'StringEditor'
+					elif isinstance(the_type, BooleanType):
+						class_name = 'BooleanEditor'
+					elif isinstance(the_type, NumericType):
+						class_name = 'NumericEditor'
+					elif isinstance(the_type, AnyType):
+						class_name = 'AnyEditor'
+					self.editors.append({'class_name': class_name, 'constructor_parameters': {'attr_name': StringValue(a.name)}})
+				]]>
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="initializing">
+				<state id="initializing">
+					<transition event="set_association_name" target="../main_behaviour">
+						<parameter name="association_name" type="str" />
+						<script>
+							self.association_name = association_name
+						</script>
+					</transition>
+				</state>
+				<parallel id="main_behaviour">					
+					<transition	event="close" target="../deleting">
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'editors'" />
+						</raise>
+					</transition>
+					<transition port="input" event="window-close" target='../deleting' cond='tagorid == id(self)'>
+						<parameter name="tagorid" type="int" default='None' />
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'editors'" />
+						</raise>
+					</transition>
+					<state id="creating_editors" initial="loop">
+						<state id="loop">
+							<transition target="../creating" cond="self.editors">
+								<script>
+									ctor_parameters = self.editors.pop(0)
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"editors"' />
+									<parameter expr='ctor_parameters["class_name"]' />
+									<parameter expr='ctor_parameters' />
+								</raise>
+							</transition>
+							<transition target="../running" cond="not self.editors" />
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../loop">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="running" />
+					</state>
+				</parallel>
+				<state id="deleting">
+					<transition after="0.05" target="../stopped">
+						<raise event="delete_window" scope="narrow" target="'parent'">
+							<parameter expr='self.association_name' />
+						</raise>
+					</transition>
+				</state>
+				<state id="stopped" />
+			</state>
+		</scxml>
+	</class>
+	<class name="Editor">
+		<method name="Editor">
+			<parameter name="attr_name" />
+			<body>
+				self.attr_name = attr_name
+			</body>
+		</method>
+	</class>
+	<class name="EntryEditor">
+		<relationships>
+			<inheritance class="Editor" priority='0'/>
+			<inheritance class="tk.Entry" priority='1'/>
+		</relationships>
+		<method name="EntryEditor">
+			<parameter name="constructor_parameters" />
+			<body>
+				tk.Entry.__init__(constructor_parameters['parent'])
+				Editor.__init__(self, constructor_parameters['attr_name'])
+			</body>
+		</method>
+	</class>
+	<class name="StringEditor">
+		<relationships>
+			<inheritance class="EntryEditor" priority='0'/>
+		</relationships>
+		<scxml>
+			<state id="initializing" />
+		</scxml>
+	</class>
+	<class name="NumericEditor">
+		<relationships>
+			<inheritance class="EntryEditor" priority='0'/>
+		</relationships>
+		<scxml>
+			<state id="initializing" />
+		</scxml>
+	</class>
+	<class name="AnyEditor">
+		<relationships>
+			<inheritance class="EntryEditor" priority='0'/>
+		</relationships>
+		<scxml>
+			<state id="initializing" />
+		</scxml>
+	</class>
+	<class name="BooleanEditor">
+		<relationships>
+			<inheritance class="EntryEditor" priority='0'/>
+		</relationships>
+		<scxml>
+			<state id="initializing" />
+		</scxml>
+	</class>
+	<class name="TypeModelBrowser">
+		<relationships>
+			<association name="buttons" class="Button" />
+			<association name="labels" class="Label" />
+			<association name="parent" class="Window" min="1" max="1" />
+			<inheritance class="Window" priority='0'/>
+		</relationships>
+		<method name="TypeModelBrowser">
+			<parameter name="constructor_parameters" type="dict" default="{}" />
+			<body>
+				Window.__init__(self, self.controller)
+				self.minsize(width=256, height=256)
+				self.title('Browse Type Models')
+				self.curr_location = LocationValue('.')
+				
+				self.buttons = [{"class_name": "Button", "parent": self, "visual": ImageVisual('icons/back-icon.png'), "tooltip_text": 'Go Up One Level', "event_parameters": {"event_name": "up_level"}},
+								{"class_name": "Button", "parent": self, "visual": TextVisual('SELECT'), "tooltip_text": 'Select Type Model', "event_parameters": {"event_name": "select_type_model"}}]
+
+				self.f = tk.Frame(self, pady=30, bg="white")
+				self.curr_location = LocationValue("")
+				self.selected_location = LocationValue("")
+				self.history = []
+				self.append_history = True
+				self.curr_children = []
+				self.name_to_loc = {}
+				self.name_to_assoc = {}
+				self.curr_name = ""
+				self.grab_set()
+				self.curr_b = 0
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="initializing">
+				<state id="initializing">
+					<transition event="set_association_name" target="../main_behaviour">
+						<parameter name="association_name" type="str" />
+						<script>
+							self.association_name = association_name
+						</script>
+					</transition>
+				</state>
+				<parallel id="main_behaviour">
+					<transition	event="close" target="../deleting">
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'labels'" />
+						</raise>
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'buttons'" />
+						</raise>
+					</transition>
+					<transition port="input" event="window-close" target='../deleting' cond='tagorid == id(self)'>
+						<parameter name="tagorid" type="int" default='None' />
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'labels'" />
+						</raise>
+						<raise scope="cd" event="delete_instance">
+							<parameter expr="'buttons'" />
+						</raise>
+					</transition>
+					<state id="creating_buttons" initial="loop">
+						<state id="loop">
+							<transition target="../creating" cond="self.buttons">
+								<script>
+									ctor_parameters = self.buttons.pop(0)
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"buttons"' />
+									<parameter expr='ctor_parameters["class_name"]' />
+									<parameter expr='ctor_parameters' />
+								</raise>
+							</transition>
+							<transition target="../running" cond="not self.buttons" />
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../loop">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="running" initial="getting_children">
+							<state id="getting_children">
+								<transition target="../waiting_client">
+									<raise event="client_request" scope="narrow" target="'parent'">
+										<parameter expr="self.association_name" />
+										<parameter expr="{'event_name': 'read', 'request_parameters': {'data': self.selected_location}}" />
+									</raise>
+								</transition>
+							</state>
+							<state id="waiting_client">
+								<transition event="client_response" target="../populating_frame" cond="hasattr(result[StringValue('item')], 'children')">
+									<parameter name="result" />
+									<script>
+										if self.append_history:
+											self.history.append(self.curr_location)
+										self.curr_location = self.selected_location
+										self.curr_children = result[StringValue("item")].children
+										self.curr_item = result[StringValue('item')]
+										self.name_to_loc = {}
+										self.name_to_assoc = {}
+										for c in self.curr_children:
+											self.name_to_loc[c[0]] = c[1]
+									</script>
+									<raise scope="cd" event="delete_instance">
+										<parameter expr="'labels'" />
+									</raise>
+								</transition>
+								<transition event="client_response" target="../running" cond="not hasattr(result[StringValue('item')], 'children')"/>
+							</state>
+							<state id="populating_frame" initial="loop">
+								<state id="loop">
+									<transition target="../creating" cond="self.curr_children">
+										<script>
+											text = self.curr_children.pop()[0]
+											self.curr_name = text
+											ctor_parameters = {"parent": self.f, "text": text}
+										</script>
+										<raise scope="cd" event="create_instance">
+											<parameter expr='"labels"' />
+											<parameter expr='"Label"' />
+											<parameter expr='ctor_parameters' />
+										</raise>
+									</transition>
+									<transition target="../../running" cond="not self.curr_children" />
+								</state>
+								<state id="creating">
+									<transition event="instance_created" target="../loop">
+										<parameter name="association_name" type="string"/>
+										<script>
+											self.name_to_assoc[self.curr_name] = association_name
+										</script>
+										<raise scope="cd" event="start_instance">
+											<parameter expr="association_name" />
+										</raise>
+										<raise scope="narrow" event="set_association_name" target="association_name">
+											<parameter expr="association_name" />
+										</raise>
+									</transition>
+								</state>
+							</state>
+							<state id="running">
+								<transition event="label_pressed" target="../waiting_for_second">
+									<parameter name="text" type="str" />
+									<raise event="unhighlight" target="'labels'" />
+									<raise event="highlight" target="self.name_to_assoc[StringValue(text)]" />
+									<script>
+										self.append_history = True
+										self.selected_location = self.name_to_loc[StringValue(text)]
+									</script>
+								</transition>
+								<transition event="button_pressed" target="../getting_children" cond="event_parameters['event_name'] == 'up_level' and self.history">
+									<parameter name="event_parameters" />
+									<script>
+										self.append_history = False
+										self.selected_location = self.history.pop()
+									</script>
+								</transition>
+								<transition event="button_pressed" target="../get_type_model" cond="event_parameters['event_name'] == 'select_type_model'">
+									<parameter name="event_parameters" />
+								</transition>
+							</state>
+							<state id="waiting_for_second">
+								<transition event="label_pressed" target="../getting_children">
+								</transition>
+								<transition after="0.5" target='../running' />
+							</state>
+							<state id="get_type_model">
+								<transition target="../waiting_client_type_model">
+									<raise event="client_request" scope="narrow" target="'parent'">
+										<parameter expr="self.association_name" />
+										<parameter expr="{'event_name': 'read', 'request_parameters': {'data': self.selected_location}}" />
+									</raise>
+								</transition>
+							</state>
+							<state id="waiting_client_type_model">
+								<transition event="client_response" target="../populating_frame" cond="isinstance(result[StringValue('item')], client_object.Model) and result[StringValue('item')].potency > IntegerValue(0)">
+									<parameter name="result" />
+									<raise event="type_model_selected" scope="narrow" target="'parent'">
+										<parameter expr="result[StringValue('item')]" />
+										<!-- parameter expr="{'class_name': 'FormalismToolbar', 'constructor_parameters': {'formalism': result[StringValue('item')]}}" / -->
+									</raise>
+									<raise event="close" />
+								</transition>
+								<transition event="client_response" target="../running" cond="not (isinstance(result[StringValue('item')], client_object.Model) and result[StringValue('item')].potency > IntegerValue(0))"/>
+							</state>
+						</state>
+					</state>
+					<state id="packing_widgets" initial="packing">
+						<state id="packing">
+							<transition event="button_created" target='.'>
+								<parameter name="widget" type="Widget" />
+								<script>
+									if self.curr_b == 0:
+										widget.pack(side=tk.TOP, fill=tk.Y)
+										self.f.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+									else:
+										widget.pack(side=tk.TOP, fill=tk.Y)
+								</script>
+							</transition>
+							<transition event="label_created" target='.'>
+								<parameter name="widget" type="Widget" />
+								<script>
+									widget.pack(side=tk.TOP, fill=tk.X)
+								</script>
+							</transition>
+						</state>
+					</state>
+					<state id="listening_client" initial="listening_client">
+						<state id="listening_client">
+							<transition event="client_request" target='.'>
+								<parameter name="association_name" type="str" />
+								<parameter name="data" type="dict" />
+								<raise event="client_request" scope="narrow" target="'parent'">
+									<parameter expr="self.association_name + '/' + association_name" />
+									<parameter expr="data" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+				</parallel>
+				<state id="deleting">
+					<transition after="0.05" target="../stopped">
+						<raise event="delete_window" scope="narrow" target="'parent'">
+							<parameter expr='self.association_name' />
+						</raise>
+					</transition>
+				</state>
+				<state id="stopped" />
+			</state>
+		</scxml>
+	</class>
+	<class name="Label">
+		<relationships>
+			<association name="widgets" class="MvKWidget" />
+			<association name="parent" class="Window" min="1" max="1" />
+			<inheritance class="MvKWidget" priority='0'/>
+			<inheritance class="tk.Label" priority='1'/>
+		</relationships>
+		<method name="Label">
+			<parameter name="constructor_parameters" type="dict" default="{}" />
+			<body>
+				tk.Label.__init__(self, constructor_parameters["parent"], text=constructor_parameters["text"], bg="white")
+				MvKWidget.__init__(self, controller)
+			</body>
+		</method>
+		<method name="~Label">
+			<body>
+				self.destroy()
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial='initializing'>
+				<state id="initializing">
+					<transition event='set_association_name' target="../running">
+						<parameter name='association_name' type='str' />
+						<script>
+							self.association_name = association_name
+						</script>
+						<raise event="label_created" scope="narrow" target="'parent'">
+							<parameter expr="self" />
+						</raise>
+					</transition>
+				</state>
+				<state id="running">
+					<transition port='input' event="left-click" target='.' cond='tagorid == id(self)'>
+						<parameter name='tagorid' type='int' default='None' />
+						<raise event="label_pressed" scope="narrow" target="'parent'">
+							<parameter expr="self.cget('text')" />
+						</raise>
+					</transition>
+					<transition event="highlight" target=".">						
+						<script>
+							self.config(bg="yellow")
+						</script>
+					</transition>
+					<transition event="unhighlight" target=".">						
+						<script>
+							self.config(bg="white")
+						</script>
+					</transition>
+				</state>
+			</state>
+		</scxml>
+	</class>
+	<class name="ModelEditor">
+		<relationships>
+			<association name="toolbars" class="Toolbar" />
+			<association name="windows" class="Window" />
+			<association name="parent" class="MvKFrontEnd" min="1" max="1" />
+			<inheritance class="Window" priority='0'/>
+		</relationships>
+		<method name="ModelEditor">
+			<parameter name="constructor_parameters" type='dict' default='{}' />
+			<body>
+				<![CDATA[
+				Window.__init__(self, controller)
+				self.title('ModelEditor')
+				
+				self.maxsize(self.winfo_screenwidth() - 15, self.winfo_screenheight() - 15)
+
+				self.INTER_SPACING = 5
+
+				self.toolbar_frame = HorizontalScrolledFrame(parent=self)
+				self.toolbar_frame.pack(side=tk.TOP, fill=tk.X, expand=0)
+
+				CANVAS_SIZE_TUPLE = (0, 0, self.winfo_screenwidth() * 2, self.winfo_screenheight() * 2)
+				self.c = tk.Canvas(self, relief=tk.RIDGE, scrollregion=CANVAS_SIZE_TUPLE)
+
+				vbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+				vbar.config(command=self.c.yview)
+				vbar.pack(side=tk.RIGHT, fill=tk.Y, pady=(0, 16))
+		
+				hbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
+				hbar.config(command=self.c.xview)
+				hbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+				self.c.config(background='white', yscrollcommand=vbar.set, xscrollcommand=hbar.set)
+				self.c.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
+				
+				MvKWidget.__init__(self, self.controller, self.c)
+				]]>
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="initializing">
+				<state id="initializing">
+					<transition event="set_association_name" target="../running">
+						<parameter name="association_name" type="str" />
+						<script>
+							self.association_name = association_name
+						</script>
+					</transition>
+				</state>
+				<parallel id="running">
+					<transition	port="input" event="window-close" target="../deleting" cond='tagorid == id(self)'>
+						<parameter name="tagorid" type="int" default='None' />
+						<raise scope="narrow" target="'toolbars'" event='delete_self' />
+					</transition>
+					<state id="main_behaviour" initial="running">
+						<state id="running">
+							<transition target='.' event='button_pressed' cond='event_parameters["event_name"] == "create_toolbar"'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="create_toolbar">
+									<parameter expr="event_parameters" />
+								</raise>
+							</transition>
+							<transition target='.' event='button_pressed' cond='event_parameters["event_name"] == "delete_toolbar"'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="delete_toolbar">
+									<parameter expr="event_parameters['association_name']" />
+								</raise>
+							</transition>
+							<transition target='../creating_model' event='button_pressed' cond='event_parameters["event_name"] == "create_model"'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="create_window" >
+									<parameter expr='{"class_name": "TypeModelBrowser", "constructor_parameters": {}}' />
+								</raise>
+							</transition>
+						</state>
+						<state id="creating_model" initial="waiting">
+							<state id="waiting">
+								<transition target='../entering_model_details' event='type_model_selected'>
+									<parameter name="formalism" type="LocationValue" />
+									<raise event="create_window" >
+										<parameter expr='{"class_name": "NewInstanceAttributeEditor", "constructor_parameters": {"type": formalism}}' />
+									</raise>
+								</transition>
+							</state>
+							<state id="entering_model_details">
+								<transition target="../waiting_client" event="instance_details_entered">
+									<parameter name="data" type="MappingValue" />
+									<raise event="client_request" scope="narrow" target="'parent'">
+										<parameter expr="self.association_name" />
+										<parameter expr="{'event_name': 'create', 'request_parameters': {'data': data}}" />
+									</raise>
+								</transition>
+							</state>
+							<state id="waiting_client">
+								<transition event="client_response" target="../../running" /> <!-- TODO: Here, do checking of errors! -->
+							</state>
+						</state>
+					</state>
+					<state id="toolbar_behaviour" initial="waiting">
+						<state id="waiting">
+							<transition event="create_toolbar" target="../creating">
+								<parameter name="event_parameters" type="dict" />
+								<script>
+									<![CDATA[
+										event_parameters["constructor_parameters"]["parent"] = self.toolbar_frame.interior
+									]]>
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"toolbars"' />
+									<parameter expr='event_parameters["class_name"]' />
+									<parameter expr='event_parameters["constructor_parameters"]' />
+								</raise>
+							</transition>
+							<transition event="delete_toolbar" target='.'>
+								<parameter name="association_name" type="str"/>
+								<raise scope="cd" event="delete_instance">
+									<parameter expr='association_name' />
+								</raise>
+							</transition>
+							<transition event="toolbar_created" target='.'>
+								<parameter name="toolbar" type="Toolbar"/>
+								<script>
+									toolbar.pack(side=tk.LEFT, fill=tk.Y, padx=self.INTER_SPACING, pady=self.INTER_SPACING)
+								</script>
+							</transition>
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../waiting">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+					<state id="window_behaviour" initial="waiting">
+						<state id="waiting">
+							<transition event="create_window" target="../creating">
+								<parameter name="event_parameters" type="str" />
+								<script>
+									<![CDATA[
+										event_parameters["constructor_parameters"]["parent"] = self
+									]]>
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"windows"' />
+									<parameter expr='event_parameters["class_name"]' />
+									<parameter expr='event_parameters["constructor_parameters"]' />
+								</raise>
+							</transition>
+							<transition event="delete_window" target='.'>
+								<parameter name="association_name" type="str"/>
+								<raise scope="cd" event="delete_instance">
+									<parameter expr='association_name' />
+								</raise>
+							</transition>
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../starting">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="starting">
+							<transition event="instance_started" target="../waiting">
+								<parameter name="association_name" type="str"/>							
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+					<state id="listening_client" initial="listening_client">
+						<state id="listening_client">
+							<transition event="client_request" target='.'>
+								<parameter name="association_name" type="str" />
+								<parameter name="data" type="dict" />
+								<raise event="client_request" scope="narrow" target="'parent'">
+									<parameter expr="self.association_name + '/' + association_name" />
+									<parameter expr="data" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+				</parallel>
+				<state id="deleting">
+					<transition after="0.05" target="../stopped">
+						<raise event="delete_window" scope="narrow" target="'parent'">
+							<parameter expr='self.association_name' />
+						</raise>
+					</transition>
+				</state>
+				<state id="stopped" />
+			</state>
+		</scxml>
+	</class>
+	<class name="Toolbar">
+		<relationships>
+			<association name="buttons" class="Button" />
+			<inheritance class="tk.Frame" priority='1'/>
+		</relationships>
+		<method name="Toolbar">
+			<parameter name="parent" type="Window" />
+			<parameter name="name" type="str" />
+			<body>
+				tk.Frame.__init__(self, parent)
+				
+				self.config(relief=tk.RAISED, bd=1)
+				
+				tk.Label(self, text=name).pack(side=tk.TOP, pady=5)
+			</body>
+		</method>
+		<method name="~Toolbar">
+			<body>
+				self.destroy()
+			</body>
+		</method>
+		<scxml initial="idle">
+			<state id="idle" />
+		</scxml>
+	</class>
+	<class name="MainToolbar">
+		<relationships>
+			<association name="buttons" class="Button" />
+			<association name="parent" class="Window" />
+			<inheritance class="Toolbar" priority='0'/>
+		</relationships>
+		<method name="MainToolbar">
+			<parameter name="constructor_parameters" type='dict' default='{}' />
+			<body>
+				<![CDATA[
+				Toolbar.__init__(self, self.controller, constructor_parameters["parent"], 'Main')
+				self.PADDING = 2
+				self.buttons = [{"parent": self, "visual": ImageVisual('icons/new-icon.png'), "tooltip_text": 'Create New Model', "event_parameters": {"event_name": "create_model"}},
+								{"parent": self, "visual": ImageVisual('icons/load-type-model.png'), "tooltip_text": 'Load a Type Model', "event_parameters": {}},
+								{"parent": self, "visual": ImageVisual('icons/open-icon.png'), "tooltip_text": 'Open a Model', "event_parameters": {}},
+								{"parent": self, "visual": ImageVisual('icons/save-icon.png'), "tooltip_text": 'Save Modelverse', "event_parameters": {}},
+								{"parent": self, "visual": ImageVisual('icons/undo-icon.png'), "tooltip_text": 'Undo', "event_parameters": {}},
+								{"parent": self, "visual": ImageVisual('icons/redo-icon.png'), "tooltip_text": 'Redo', "event_parameters": {}}]
+				]]>
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="initializing">
+				<state id="initializing">
+					<transition event="set_association_name" target="../main_behaviour">
+						<parameter name="association_name" type="str" />
+						<script>
+							self.association_name = association_name
+						</script>
+						<raise event="toolbar_created" scope="narrow" target="'parent'">
+							<parameter expr="self" />
+						</raise>
+					</transition>
+				</state>
+				<parallel id="main_behaviour">
+					<state id="creating_buttons" initial="loop">
+						<state id="loop">
+							<transition target="../creating" cond="self.buttons">
+								<script>
+									ctor_parameters = self.buttons.pop(0)
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"buttons"' />
+									<parameter expr='"Button"' />
+									<parameter expr='ctor_parameters' />
+								</raise>
+							</transition>
+							<transition target="../running" cond="not self.buttons" /> 
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../loop">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="running" />
+					</state>
+					<state id="packing_buttons" initial="packing">
+						<state id="packing">
+							<transition event="button_created" target='.'>
+								<parameter name="button" type="Button" />
+								<script>
+									button.pack(side=tk.LEFT, fill=tk.Y, padx=self.PADDING)
+								</script>
+							</transition>
+						</state>
+					</state>
+					<state id="listening" initial="listening">
+						<state id="listening">
+							<transition event="button_pressed" target='.'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="button_pressed" scope="narrow" target="'parent'">
+									<parameter expr="event_parameters" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+					<state id="listening_client" initial="listening_client">
+						<state id="listening_client">
+							<transition event="client_request" target='.'>
+								<parameter name="association_name" type="str" />
+								<parameter name="data" type="dict" />
+								<raise event="client_request" scope="narrow" target="'parent'">
+									<parameter expr="self.association_name + '/' + association_name" />
+									<parameter expr="data" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+				</parallel>
+			</state>
+		</scxml>
+	</class>
+	<class name="FormalismToolbar">
+		<relationships>
+			<association name="buttons" class="Button" />
+			<association name="parent" class="Window" />
+			<inheritance class="Toolbar" priority='0'/>
+		</relationships>
+		<method name="FormalismToolbar">
+			<parameter name="constructor_parameters" type='dict' default='{}' />
+			<body>
+				<![CDATA[
+				self.formalism = constructor_parameters["formalism"]
+				Toolbar.__init__(self, self.controller, constructor_parameters["parent"], self.formalism.name)
+				self.i = 0
+				self.buttons = []
+				self.PADDING = 2
+				]]>
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial="initializing">
+				<state id="initializing">
+					<transition event="set_association_name" target="../main_behaviour">
+						<parameter name="association_name" type="str" />
+						<script>
+							self.association_name = association_name
+						</script>
+						<raise event="toolbar_created" scope="narrow" target="'parent'">
+							<parameter expr="self" />
+						</raise>
+					</transition>
+				</state>
+				<parallel id="main_behaviour">
+					<state id="creating_buttons" initial="reading_formalism">
+						<state id="reading_formalism">
+							<transition target="../waiting_client" cond="self.i &lt; len(self.formalism.elements)">
+								<raise event="client_request" scope="narrow" target="'parent'">
+									<parameter expr="self.association_name" />
+									<parameter expr="{'event_name': 'read', 'request_parameters': {'data': self.formalism.elements[self.i][1]}}" />
+								</raise>
+								<script>
+									self.i += 1
+								</script>
+							</transition>
+							<transition target="../loop" cond="self.i == len(self.formalism.elements)" />
+						</state>
+						<state id="waiting_client">
+							<transition event="client_response" target="../reading_formalism">
+								<parameter name="result" />
+								<script>
+									item = result[StringValue("item")]
+									if isinstance(item, client_object.Clabject) and item.potency > IntegerValue(0) and not isinstance(item, client_object.Composition) and not item.abstract:
+										self.buttons.append({"parent": self, "visual": TextVisual(item.name), "tooltip_text": 'Create New %s' % item.name, "event_parameters": {"event_name": "create_instance", "type": item}})
+								</script>
+							</transition>
+						</state>
+						<state id="loop">
+							<transition target="../creating" cond="self.buttons">
+								<script>
+									ctor_parameters = self.buttons.pop(0)
+								</script>
+								<raise scope="cd" event="create_instance">
+									<parameter expr='"buttons"' />
+									<parameter expr='"Button"' />
+									<parameter expr='ctor_parameters' />
+								</raise>
+							</transition>
+							<transition target="../running" cond="not self.buttons" /> 
+						</state>
+						<state id="creating">
+							<transition event="instance_created" target="../loop">
+								<parameter name="association_name" type="string"/>
+								<raise scope="cd" event="start_instance">
+									<parameter expr="association_name" />
+								</raise>
+								<raise scope="narrow" event="set_association_name" target="association_name">
+									<parameter expr="association_name" />
+								</raise>
+							</transition>
+						</state>
+						<state id="running" />
+					</state>
+					<state id="packing_buttons" initial="packing">
+						<state id="packing">
+							<transition event="button_created" target='.'>
+								<parameter name="button" type="Button" />
+								<script>
+									button.pack(side=tk.LEFT, fill=tk.Y, padx=self.PADDING)
+								</script>
+							</transition>
+						</state>
+					</state>
+					<state id="listening" initial="listening">
+						<state id="listening">
+							<transition event="button_pressed" target='.'>
+								<parameter name="event_parameters" type="dict" />
+								<raise event="button_pressed" scope="narrow" target="'parent'">
+									<parameter expr="event_parameters" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+					<state id="listening_client" initial="listening_client">
+						<state id="listening_client">
+							<transition event="client_request" target='.'>
+								<parameter name="association_name" type="str" />
+								<parameter name="data" type="dict" />
+								<raise event="client_request" scope="narrow" target="'parent'">
+									<parameter expr="self.association_name + '/' + association_name" />
+									<parameter expr="data" />
+								</raise>
+							</transition>
+						</state>
+					</state>
+				</parallel>
+			</state>
+		</scxml>
+	</class>
+	<class name="Button">
+		<relationships>
+			<association name="parent" class="Toolbar" min="1" max="1" />
+			<inheritance class="MvKWidget" priority='0'/>
+			<inheritance class="tk.Button" priority='1'/>
+		</relationships>
+		<method name="Button">
+			<parameter name="constructor_parameters" type='dict' default='{}' />
+			<body>
+				tk.Button.__init__(self, constructor_parameters["parent"], **(constructor_parameters["visual"].get_params()))
+				MvKWidget.__init__(self, self.controller)
+				self.event_parameters = constructor_parameters["event_parameters"]
+				self.tooltip = ToolTip(self, constructor_parameters["tooltip_text"])
+				self.visual = constructor_parameters["visual"]
+			</body>
+		</method>
+		<method name="~Button">
+			<body>
+				self.destroy()
+			</body>
+		</method>
+		<scxml initial="root">
+			<state id="root" initial='initializing'>
+				<state id="initializing">
+					<transition event='set_association_name' target="../running">
+						<parameter name='association_name' type='str' />
+						<script>
+							self.association_name = association_name
+						</script>
+						<raise event="button_created" scope="narrow" target="'parent'">
+							<parameter expr="self" />
+						</raise>
+					</transition>
+				</state>
+				<state id="running">
+					<transition port='input' event="left-click" target='.' cond='tagorid == id(self)'>
+						<parameter name='tagorid' type='int' default='None' />
+						<raise event="button_pressed" scope="narrow" target="'parent'">
+							<parameter expr="self.event_parameters" />
+						</raise>
+					</transition>
+					<transition port='input' event="enter" target='.' cond='tagorid == id(self)'>
+						<parameter name='tagorid' type='int' default='None' />
+						<script>
+							self.tooltip.showtip()
+						</script>
+					</transition>
+					<transition port='input' event="leave" target='.' cond='tagorid == id(self)'>
+						<parameter name='tagorid' type='int' default='None' />
+						<script>
+							self.tooltip.hidetip()
+						</script>
+					</transition>
+				</state>
+			</state>
+		</scxml>
+	</class>
+	<class name="MvKClient">
+		<relationships>
+			<association name="parent" class="FrontEnd" />
+		</relationships>
+		<method name="MvKClient">
+			<body>
+				<![CDATA[
+				self.requesturl = "http://%s:%s/" % (host, port)
+				self.encoder = MvKEncoder()
+				self.decoder = MvKDecoder()
+				]]>
+			</body>
+		</method>
+		<method name="requestGET">
+			<parameter name="function"/>
+			<parameter name="data"/>
+			<body>
+				<![CDATA[
+				query = "?func=" + function + "&args=" + urllib.quote(data)
+				response = urllib2.urlopen(self.requesturl + query)
+				response = response.read()
+				return self.decoder.decode(response)
+				]]>
+			</body>
+		</method>
+		<method name="requestPOST">
+			<parameter name="function"/>
+			<parameter name="data"/>
+			<body>
+				<![CDATA[
+				query = "func=" + function + "&args=" + str(data)
+				response = urllib2.urlopen(self.requesturl, query)
+				return self.decoder.decode(response.read())
+				]]>
+			</body>
+		</method>
+		<scxml initial="main">
+			<state id="main">
+				<transition event="read" target=".">
+					<parameter name="association_name" />
+					<parameter name="data" type="LocationValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestGET('read', self.encoder.encode(data))"/>
+					</raise>
+				</transition>
+				<transition event="create" target=".">
+					<parameter name="association_name" />
+					<parameter name="data" type="MappingValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('create', self.encoder.encode(data))"/>
+					</raise>
+				</transition>
+				<transition event="update" target=".">
+					<parameter name="association_name" />
+					<parameter name="data" type="MappingValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('update', self.encoder.encode(data))"/>
+					</raise>
+				</transition>
+				<transition event="delete" target=".">
+					<parameter name="association_name" />
+					<parameter name="data" type="MappingValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('delete', self.encoder.encode(data))"/>
+					</raise>
+				</transition>
+				<transition event="clear" target=".">
+					<parameter name="association_name" />
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('clear', [[], {}])"/>
+					</raise>
+				</transition>
+				<transition event="conforms_to" target=".">
+					<parameter name="association_name" />
+					<parameter name="model" type="LocationValue" default="None"/>
+					<parameter name="type_model" type="LocationValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('conforms_to', '[[' + self.encoder.encode(model) + ', ' + self.encoder.encode(type_model) + '], {}]')"/>
+					</raise>
+				</transition>
+				<transition event="evaluate" target=".">
+					<parameter name="association_name" />
+					<parameter name="args" type="list" default="[]"/>
+					<parameter name="kwargs" type="dict" default="{}"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('evaluate', '[' + self.encoder.encode(args) + ', ' + self.encoder.encode(kwargs) + ']')"/>
+					</raise>
+				</transition>
+				<transition event="backup" target=".">
+					<parameter name="association_name" />
+					<parameter name="filename" type="str" default="user_save"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('backup', '[[' + self.encoder.encode(filename) + '], {}]')"/>
+					</raise>
+				</transition>
+				<transition event="restore" target=".">
+					<parameter name="association_name" />
+					<parameter name="filename" type="str" default="protected"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('restore', '[[' + self.encoder.encode(filename) + '], {}]')"/>
+					</raise>
+				</transition>
+				<transition event="run" target=".">
+					<parameter name="association_name" />
+					<parameter name="opname" type="str" default="None"/>
+					<parameter name="kwargs" type="dict" default="{}"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('run', '[[' + self.encoder.encode(opname) + '], {' + self.encoder.encode(kwargs) + '}]')"/>
+					</raise>
+				</transition>
+				<transition event="execute" target=".">
+					<parameter name="association_name" />
+					<parameter name="location" type="str" default="None"/>
+					<parameter name="args" type="list" default="[]"/>
+					<script>
+						new_args = [location]
+						new_args.extend(args)
+					</script>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('execute', '[' + self.encoder.encode(new_args) + ', {}]')"/>
+					</raise>
+				</transition>
+				<transition event="apply" target=".">
+					<parameter name="association_name" />
+					<parameter name="params" type="MappingValue" default="None"/>
+					<raise event="client_response" scope="narrow" target="association_name">
+						<parameter expr="SELF.requestPOST('apply', '[[' + self.encoder.encode(params) + '], {}]')"/>
+					</raise>
+				</transition>
+			</state>
+		</scxml>
+	</class>
+</diagram>

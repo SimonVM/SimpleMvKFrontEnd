@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram author="Simon Van Mierlo" name="Button">
+	<description>
+        Simple Statechart for a button.
+    </description>
+
+    <inport name="input" />
+
+    <class name="Main" default="true">
+        <attribute name="button" type="Button"/>
+        <method name="Main">
+            <parameter type="Button" name="button"/>
+            <body>
+                self.button = button
+           </body>
+        </method>
+    	<scxml initial="idle">
+    		<state id="idle">
+                <transition port="input" event="left-click" target="../idle">
+                	<script>self.button.pressed()</script>
+                	<raise event='button-pressed' scope='output' output='output-main'/>
+                </transition>
+                <transition port="input" event="enter" target="../idle">
+                	<script>self.button.show_tooltip()</script>
+                </transition>
+                <transition port="input" event="leave" target="../idle">
+                	<script>self.button.hide_tooltip()</script>
+                </transition>
+            </state>
+    	</scxml>
+    </class>
+</diagram>

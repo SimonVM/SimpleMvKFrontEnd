@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<diagram author="Simon Van Mierlo" name="Instance Controller">
+	<description>
+        Moving instances around.
+    </description>
+    <inport name="input" />
+    <class name="Main" default="true">
+        <attribute name="node" type="Node"/>
+        <method name="Main">
+            <parameter type="Node" name="node"/>
+            <body>
+                self.node = node
+           </body>
+        </method>
+    	<scxml initial="idle">
+    		<state id="idle">
+                <transition port="input" event="left-click" target="../selected">
+                	<script>self.node.highlight()</script>
+                </transition>
+            </state>
+            <state id="selected">
+                <transition port="input" event="drag" target="../selected">
+                	<script>self.node.move()</script>
+                </transition>
+                <transition port="input" event="left-release" target="../idle">
+                	<script>self.node.unhighlight()</script>
+                </transition>
+            </state>
+    	</scxml>
+    </class>
+</diagram>

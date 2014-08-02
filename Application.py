@@ -223,12 +223,14 @@ class Application(Frame):
             if isinstance(next_assoc, mvk.interfaces.object.Composition) and next_assoc.get_potency() > IntegerValue(0):
                 def create_child(the_type, assoc_type, parent_loc, children):
                     cl = self.create_instance_composition(the_type, parent_loc)
+                    instance_location = None
                     if cl and cl.is_success():
                         attr_it = cl[CreateConstants.ATTRS_KEY].__iter__()
                         while attr_it.has_next():
                             next_attr = attr_it.next()
                             if next_attr[StringValue('name')] == StringValue('name'):
                                 instance_location = cl[CreateConstants.LOCATION_KEY] + StringValue('.') + next_attr[StringValue('value')]
+                        assert instance_location
                         insert_child(children, assoc_type, self.mvk.read(instance_location).get_item())
 
                 assoc_button = Button(attr_window, text=str('Add %s (%s)' % (next_assoc.get_to_multiplicity().get_node().get_name(),
@@ -281,11 +283,11 @@ class Application(Frame):
                         fix = '\'' if isinstance(v, StringValue) else ''
                         attrs_for_str.append('StringValue(\'%s\'): %s(%s)' % (str(k), v.__class__.__name__, '' if v is None or isinstance(v, mvk.interfaces.datatype.DataType) else fix + str(v) + fix))
                     attrs_str = ', '.join(attrs_for_str)
-                    f.write('self.mvk.%s(%s)\n' % (op, 'MappingValue(CreateConstants.LOCATION_KEY: LocationValue(\'%s\'), \
-                                                                     CreateConstants.TYPE_KEY: LocationValue(\'%s\'), \
-                                                                     CreateConstants.ATTRS_KEY: MappingValue({%s})' % (str(attrs[CRUDConstants.LOCATION_KEY]),
-                                                                                                                       str(attrs[CRUDConstants.TYPE_KEY]),
-                                                                                                                       attrs_str)
+                    f.write('self.mvk.%s(%s)\n' % (op, 'MappingValue({CreateConstants.LOCATION_KEY: LocationValue(\'%s\'), \
+                                                                      CreateConstants.TYPE_KEY: LocationValue(\'%s\'), \
+                                                                      CreateConstants.ATTRS_KEY: MappingValue({%s})})' % (str(attrs[CRUDConstants.LOCATION_KEY]),
+                                                                                                                          str(attrs[CRUDConstants.TYPE_KEY]),
+                                                                                                                          attrs_str)
                                                    )
                             )
                 else:
@@ -480,15 +482,11 @@ class Application(Frame):
         CANVAS_SIZE_TUPLE = (0, 0, self.master.winfo_screenwidth() * 2, self.master.winfo_screenheight() * 2)
 
         self.toolbar_frame = Frame(master=self)
-        self.toolbar_bottom_frame = Frame(self.toolbar_frame)
-        self.toolbar_canvas = Canvas(master=self.toolbar_frame,
-                                     takefocus=1,
-                                     scrollregion=(0, 0, self.master.winfo_screenwidth() * 2, 0))
-
-        self.toolbar_canvas.square = Canvas(self.toolbar_bottom_frame, width=16, height=16)
-
+        self.toolbar_canvas = Canvas(master=self.toolbar_frame)
+        self.toolbar_canvas.pack(side=LEFT, fill=X, expand=1)
         self.toolbar = Frame(self.toolbar_canvas)
-        self.toolbar_canvas_handler = self.toolbar_canvas.create_window(0, 0, window=self.toolbar, anchor=NW)
+
+        self.toolbar_frame.pack(side=TOP, fill=X, expand=0)
 
         new_icon_img = ImageTk.PhotoImage(Image.open("icons/new-icon.png").resize((64, 64), Image.ANTIALIAS))
         self.new_button = Button(self.toolbar_canvas, image=new_icon_img, command=self.create_model)
@@ -496,7 +494,7 @@ class Application(Frame):
         self.new_button.image = new_icon_img
         createToolTip(self.new_button, "Create a new model.")
 
-        load_mm_icon_img = ImageTk.PhotoImage(Image.open("icons/load-mm-icon.png").resize((64, 64), Image.ANTIALIAS))
+        load_mm_icon_img = ImageTk.PhotoImage(Image.open("icons/load-type-model.png").resize((64, 64), Image.ANTIALIAS))
         self.load_mm_button = Button(self.toolbar_canvas, image=load_mm_icon_img, command=self.load_type_model)
         self.load_mm_button.pack(side=LEFT, fill=Y, padx=5)
         self.load_mm_button.image = load_mm_icon_img
@@ -524,10 +522,6 @@ class Application(Frame):
         self.save_button.pack(side=LEFT, fill=Y, padx=5)
         self.save_button.image = save_icon_img
         createToolTip(self.save_button, "Save the modelverse.")
-
-        self.toolbar_frame.pack(side=TOP, fill=X, expand=0)
-        # self.toolbar_canvas.square.pack(side=RIGHT, fill=X, expand=0)
-        self.toolbar_canvas.pack(side=LEFT, fill=X, expand=1)
 
         canvas_frame = Frame(master=self)
 

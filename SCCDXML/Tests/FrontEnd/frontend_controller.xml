@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<diagram author="Simon Van Mierlo" name="MvK FrontEnd">
+	<description>
+        Frontend test, basis for SimpleMvKFrontEnd.
+    </description>
+
+    <inport name="input" />
+    <inport name="engine" />
+
+    <class name="Main" default="true">
+        <attribute name="frontend" type="FrontEnd"/>
+        <method name="Main">
+            <parameter type="FrontEnd" name="frontend"/>
+            <body>
+                self.frontend = frontend
+           </body>
+        </method>
+    	<scxml initial="idle">
+    		<state id="idle">
+                <transition port="input" event="right-click" target="../creating_instance">
+                	<script>self.frontend.create_instance()</script>
+                </transition>
+				<transition	after='0.02' target='../idle'>
+					<script>
+					</script>
+				</transition>
+            </state>
+    		<state id="creating_instance">
+                <transition port="engine" event="instance-created" target="../idle"/>
+            </state>
+    	</scxml>
+    </class>
+</diagram>

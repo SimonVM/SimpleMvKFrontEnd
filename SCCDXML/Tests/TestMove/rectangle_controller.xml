@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<diagram author="Simon Van Mierlo" name="Rectangle Controller">
+	<description>
+        Moving rectangles around.
+    </description>
+    <inport name="input" />
+    <class name="Main" default="true">
+        <attribute name="rectangle" type="Rectangle"/>
+        <method name="Main">
+            <parameter type="Rectangle" name="rectangle"/>
+            <body>
+                self.rectangle = rectangle
+           </body>
+        </method>
+    	<scxml initial="idle">
+    		<state id="idle">
+                <transition port="input" event="left-click" target="../selected">
+                	<script>self.rectangle.highlight()</script>
+                </transition>
+            </state>
+            <state id="selected">
+                <transition port="input" event="drag" target="../selected">
+                	<script>self.rectangle.move()</script>
+                </transition>
+                <transition port="input" event="left-release" target="../idle">
+                	<script>self.rectangle.unhighlight()</script>
+                </transition>
+            </state>
+    	</scxml>
+    </class>
+</diagram>

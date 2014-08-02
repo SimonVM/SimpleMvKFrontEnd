@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<diagram author="Simon Van Mierlo" name="Browse Window Controller">
+	<description>
+        A browse window for the Modelverse.
+    </description>
+    <inport name="input" />
+    <class name="Main" default="true">
+        <attribute name="window" type="BrowseWindow"/>
+        <method name="Main">
+            <parameter type="window" name="window"/>
+            <body>
+                self.window = window
+           </body>
+        </method>
+    	<scxml initial="idle">
+    		<state id="idle">
+                <transition port="input" event="left-click" target="../clicked_once">
+                	<script>self.window.select_entry()</script>
+                </transition>
+            </state>
+            <state id="clicked_once">
+                <transition port="input" event="left-click" target="../idle">
+                	<script>self.window.next_level()</script>
+                </transition>
+                <transition after="0.5" target="../idle"/>
+            </state>
+    	</scxml>
+    </class>
+</diagram>
